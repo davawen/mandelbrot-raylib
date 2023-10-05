@@ -9,4 +9,3 @@ edition = "2021"
 itertools = "0.11.0"
 rayon = "1.8.0"
 sdl2 = "0.35.2"
-# sdl2 = {version = "0.35.2", features = ["bundled"]}
