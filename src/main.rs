@@ -90,6 +90,15 @@ fn main() {
             _ => ()
         }
 
+        if rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT) {
+            let delta = rl.get_mouse_delta();
+            if delta != Vector2::zero() {
+                cam.x -= cam.zoom*delta.x as f64 / w as f64;
+                cam.y -= cam.zoom*delta.y as f64 / h as f64;
+                rerender = true;
+            }
+        }
+
 
         let mut d = rl.begin_drawing(&thread);
         d.clear_background(Color::new(0, 0, 0, 0));
