@@ -79,7 +79,7 @@ fn main() {
         match rl.get_mouse_wheel_move() {
             y if y != 0.0 => {
                 let Vector2 { x: mouse_x, y: mouse_y } = rl.get_mouse_position();
-                println!("{mouse_x}, {mouse_y}");
+                println!("{mouse_x}, {mouse_y} | {w}, {h}");
 
                 let delta = y as f64 / 10.0;
                 cam.x += cam.zoom*delta*(mouse_x as f64 / w as f64 - 0.5);
@@ -99,7 +99,7 @@ fn main() {
                 let (x, y) = (i % w, i / w);
                 let c = Complex(
                     (x as f64 / w as f64 - 0.5) * cam.zoom + cam.x,
-                    (y as f64 / w as f64 - (h as f64/w as f64)/2.0) * cam.zoom + cam.y
+                    (y as f64 / w as f64 - (h as f64/w as f64)/2.0) * cam.zoom - cam.y
                 );
 
                 mandelbrot(c, max_iter)
