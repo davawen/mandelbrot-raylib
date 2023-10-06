@@ -79,7 +79,6 @@ fn main() {
         match rl.get_mouse_wheel_move() {
             y if y != 0.0 => {
                 let Vector2 { x: mouse_x, y: mouse_y } = rl.get_mouse_position();
-                println!("{mouse_x}, {mouse_y} | {w}, {h}");
 
                 let delta = y as f64 / 10.0;
                 cam.x += cam.zoom*delta*(mouse_x as f64 / w as f64 - 0.5);
@@ -98,7 +97,6 @@ fn main() {
                 rerender = true;
             }
         }
-
 
         let mut d = rl.begin_drawing(&thread);
         d.clear_background(Color::new(0, 0, 0, 0));
