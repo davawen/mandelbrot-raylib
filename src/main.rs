@@ -1,8 +1,10 @@
-use itertools::Itertools;
-use rayon::prelude::*;
 use raylib::prelude::*;
 
-pub struct Complex(f64, f64);
+// to easily switch between 32 and 64 bits
+type FP = f32;
+
+#[repr(C)]
+pub struct Complex(FP, FP);
 
 fn mandelbrot(c: Complex, max_iter: u16) -> u16 {
 	let mut z = Complex(0.0, 0.0);
@@ -26,8 +28,8 @@ fn mandelbrot(c: Complex, max_iter: u16) -> u16 {
 }
 
 struct Camera {
-    x: f64, y: f64,
-    zoom: f64
+    x: FP, y: FP,
+    zoom: FP
 }
 
 fn number_keys() -> [(KeyboardKey, u32); 10] {
@@ -39,12 +41,35 @@ fn number_keys() -> [(KeyboardKey, u32); 10] {
     std::array::from_fn(|i| (nums[i], i as _))
 }
 
+type Uniform = i32;
+
+struct MandelbrotShader {
+    s: Shader,
+    resolution: Uniform,
+    max_iter: Uniform,
+    cam: Uniform
+}
+
+impl MandelbrotShader {
+    fn create(rl: &mut RaylibHandle, thread: &RaylibThread) -> Self {
+        const SHADER: &str = include_str!("mandelbrot.glsl");
+        let s = rl.load_shader_from_memory(thread, None, Some(SHADER));
+        let resolution = s.get_shader_location("resolution");
+        let max_iter = s.get_shader_location("max_iter");
+        let cam = s.get_shader_location("cam");
+        Self {
+            s, resolution, max_iter, cam
+        }
+    }
+}
+
 fn main() {
 
     // let opt = Opt::from_arg();
     let (mut rl, thread) = raylib::init()
         .size(640, 480)
         .title("Mandelbrot")
+        .resizable()
         .build();
 
     let mut cam = Camera {
@@ -54,9 +79,12 @@ fn main() {
 
     let mut rerender = true;
 
-    let mut values = vec![];
     let mut max_iter = 32;
     println!("change how many iterations there are with the number keys!");
+
+    let mut shader = MandelbrotShader::create(&mut rl, &thread);
+    shader.s.set_shader_value::<[f32; 2]>(shader.resolution, [640.0, 480.0]);
+    shader.s.set_shader_value(shader.max_iter, max_iter);
 
     let mut target = rl.load_render_texture(&thread, 640, 480).unwrap();
 
@@ -64,7 +92,9 @@ fn main() {
     while !rl.window_should_close() {
         for key in keys {
             if rl.is_key_pressed(key.0) {
-                max_iter = 2_u16.pow(key.1 + 2);
+                max_iter = 2_i32.pow(key.1 + 2);
+                shader.s.set_shader_value(shader.max_iter, max_iter);
+
                 println!("{max_iter}");
                 rerender = true;
             }
@@ -72,6 +102,7 @@ fn main() {
 
         let (w, h) = (rl.get_screen_width(), rl.get_screen_height());
         if rl.is_window_resized() {
+            shader.s.set_shader_value::<[f32; 2]>(shader.resolution, [w as f32, h as f32]);
             target = rl.load_render_texture(&thread, w as _, h as _).unwrap();
             rerender = true;
         }
@@ -80,9 +111,9 @@ fn main() {
             y if y != 0.0 => {
                 let Vector2 { x: mouse_x, y: mouse_y } = rl.get_mouse_position();
 
-                let delta = y as f64 / 10.0;
-                cam.x += cam.zoom*delta*(mouse_x as f64 / w as f64 - 0.5);
-                cam.y += cam.zoom*delta*(mouse_y as f64 / w as f64 - (h as f64 / w as f64/2.0));
+                let delta = y as FP / 10.0;
+                cam.x += cam.zoom*delta*(mouse_x as FP / w as FP - 0.5);
+                cam.y += cam.zoom*delta*(mouse_y as FP / w as FP - (h as FP / w as FP/2.0));
                 cam.zoom *= 1.0 - delta;
                 rerender = true; 
             }
@@ -92,43 +123,22 @@ fn main() {
         if rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT) {
             let delta = rl.get_mouse_delta();
             if delta != Vector2::zero() {
-                cam.x -= cam.zoom*delta.x as f64 / w as f64;
-                cam.y -= cam.zoom*delta.y as f64 / h as f64;
+                cam.x -= cam.zoom*delta.x as FP / w as FP;
+                cam.y -= cam.zoom*delta.y as FP / w as FP;
                 rerender = true;
             }
         }
 
         let mut d = rl.begin_drawing(&thread);
+
         d.clear_background(Color::new(0, 0, 0, 0));
         if rerender {
-            let (w, h) = (w as usize, h as usize);
-            (0..w*h).into_par_iter().map( |i| {
-                let (x, y) = (i % w, i / w);
-                let c = Complex(
-                    (x as f64 / w as f64 - 0.5) * cam.zoom + cam.x,
-                    (y as f64 / w as f64 - (h as f64/w as f64)/2.0) * cam.zoom - cam.y
-                );
-
-                mandelbrot(c, max_iter)
-            }).collect_into_vec(&mut values);
-
             {
                 let mut d = d.begin_texture_mode(&thread, &mut target);
-                for (y, x) in (0..h).cartesian_product(0..w) {
-                    let i = values[y*w + x] as u32;
-                    let color = if i == max_iter as u32 {
-                        Color::BLACK
-                    }
-                    else {
-                        Color::new(
-                            255 - (i*255/max_iter as u32) as u8,
-                            128 - (i*128/max_iter as u32) as u8,
-                            128,
-                            255
-                        )
-                    };
-
-                    d.draw_pixel(x as _, y as _, color);
+                {
+                    shader.s.set_shader_value(shader.cam, [cam.x, cam.y, cam.zoom]);
+                    let mut d = d.begin_shader_mode(&shader.s);
+                    d.draw_rectangle(0, 0, w, h, Color::WHITE);
                 }
             }
             rerender = false;
