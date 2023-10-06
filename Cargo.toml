@@ -8,4 +8,8 @@ edition = "2021"
 [dependencies]
 itertools = "0.11.0"
 rayon = "1.8.0"
-sdl2 = "0.35.2"
+
+[dependencies.raylib]
+version = "4.5.0"
+git = "https://github.com/litten2up/raylib-rs"
+branch = "4.5.0"

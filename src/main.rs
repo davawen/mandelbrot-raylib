@@ -1,13 +1,6 @@
-use std::sync::{Mutex, Arc};
-use std::thread;
 use itertools::Itertools;
-use sdl2::pixels::Color;
-use sdl2::event::{Event, WindowEvent};
-use sdl2::keyboard::Keycode;
-use sdl2::rect::Point;
-use sdl2::render::{Canvas, CanvasBuilder, RenderTarget};
-use std::time::Duration;
 use rayon::prelude::*;
+use raylib::prelude::*;
 
 pub struct Complex(f64, f64);
 
@@ -37,75 +30,70 @@ struct Camera {
     zoom: f64
 }
 
-pub fn main() {
-    let sdl_context = sdl2::init().unwrap();
-    let video_subsystem = sdl_context.video().unwrap();
+fn number_keys() -> [(KeyboardKey, u32); 10] {
+    use KeyboardKey as K;
+    let nums = [
+        K::KEY_ONE, K::KEY_TWO, K::KEY_THREE, K::KEY_FOUR, K::KEY_FIVE,
+        K::KEY_SIX, K::KEY_SEVEN, K::KEY_EIGHT, K::KEY_NINE, K::KEY_ZERO
+    ];
+    std::array::from_fn(|i| (nums[i], i as _))
+}
 
-    let window = video_subsystem.window("Mandelbrot", 800, 600)
-        .position_centered()
-        .build()
-        .unwrap();
+fn main() {
 
-    let mut canvas = window.into_canvas().build().unwrap();
-    let mut event_pump = sdl_context.event_pump().unwrap();
+    // let opt = Opt::from_arg();
+    let (mut rl, thread) = raylib::init()
+        .size(640, 480)
+        .title("Mandelbrot")
+        .build();
 
     let mut cam = Camera {
         x: -0.5, y: 0.0,
         zoom: 2.5
     };
 
-    let mut values = vec![];
+    let mut rerender = true;
 
+    let mut values = vec![];
     let mut max_iter = 32;
     println!("change how many iterations there are with the number keys!");
 
-    let mut rerender = true;
+    let mut target = rl.load_render_texture(&thread, 640, 480).unwrap();
 
-    'running: loop {
-        let (mouse_x, mouse_y) = (event_pump.mouse_state().x(), event_pump.mouse_state().y());
-        for event in event_pump.poll_iter() {
-            match event {
-                Event::Quit {..} |
-                Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
-                    break 'running
-                }
-                Event::Window { win_event: WindowEvent::SizeChanged(..), .. } => rerender = true,
-                Event::KeyDown { keycode: Some(keycode), .. } => 'nan: {
-                    use Keycode as K;
-                    let power = match keycode {
-                        K::Num1 => 1,
-                        K::Num2 => 2,
-                        K::Num3 => 3,
-                        K::Num4 => 4,
-                        K::Num5 => 5,
-                        K::Num6 => 6,
-                        K::Num7 => 7,
-                        K::Num8 => 8,
-                        K::Num9 => 9,
-                        K::Num0 => 10,
-                        _ => break 'nan
-                    };
-
-                    max_iter = 2_u16.pow(power + 2);
-                    println!("{max_iter}");
-                    rerender = true;
-                }
-                Event::MouseWheel { y, .. } => {
-                    let (w, h) = canvas.output_size().unwrap();
-                    let delta = y as f64 / 10.0;
-					cam.x += cam.zoom*delta*(mouse_x as f64 / w as f64 - 0.5);
-					cam.y += cam.zoom*delta*(mouse_y as f64 / w as f64 - (h as f64 / w as f64/2.0));
-					cam.zoom *= 1.0 - delta;
-					rerender = true; 
-                }
-                _ => {}
+    let keys = number_keys();
+    while !rl.window_should_close() {
+        for key in keys {
+            if rl.is_key_pressed(key.0) {
+                max_iter = 2_u16.pow(key.1 + 2);
+                println!("{max_iter}");
+                rerender = true;
             }
         }
 
-        if rerender {
-            canvas.clear();
+        let (w, h) = (rl.get_screen_width(), rl.get_screen_height());
+        if rl.is_window_resized() {
+            target = rl.load_render_texture(&thread, w as _, h as _).unwrap();
+            rerender = true;
+        }
 
-            let (w, h) = canvas.output_size().unwrap();
+        match rl.get_mouse_wheel_move() {
+            y if y != 0.0 => {
+                let Vector2 { x: mouse_x, y: mouse_y } = rl.get_mouse_position();
+                println!("{mouse_x}, {mouse_y}");
+
+                let delta = y as f64 / 10.0;
+                cam.x += cam.zoom*delta*(mouse_x as f64 / w as f64 - 0.5);
+                cam.y += cam.zoom*delta*(mouse_y as f64 / w as f64 - (h as f64 / w as f64/2.0));
+                cam.zoom *= 1.0 - delta;
+                rerender = true; 
+            }
+            _ => ()
+        }
+
+
+        let mut d = rl.begin_drawing(&thread);
+        d.clear_background(Color::new(0, 0, 0, 0));
+        if rerender {
             let (w, h) = (w as usize, h as usize);
             (0..w*h).into_par_iter().map( |i| {
                 let (x, y) = (i % w, i / w);
@@ -117,20 +105,28 @@ pub fn main() {
                 mandelbrot(c, max_iter)
             }).collect_into_vec(&mut values);
 
-            for (y, x) in (0..h).cartesian_product(0..w) {
-                let i = values[y*w + x] as u32;
-                if i == max_iter as u32 {
-                    canvas.set_draw_color(Color::BLACK);
+            {
+                let mut d = d.begin_texture_mode(&thread, &mut target);
+                for (y, x) in (0..h).cartesian_product(0..w) {
+                    let i = values[y*w + x] as u32;
+                    let color = if i == max_iter as u32 {
+                        Color::BLACK
+                    }
+                    else {
+                        Color::new(
+                            255 - (i*255/max_iter as u32) as u8,
+                            128 - (i*128/max_iter as u32) as u8,
+                            128,
+                            255
+                        )
+                    };
+
+                    d.draw_pixel(x as _, y as _, color);
                 }
-                else {
-                    canvas.set_draw_color(Color::RGB(255 - (i*255/max_iter as u32) as u8, 128 - (i*128/max_iter as u32) as u8, 128));
-                }
-                canvas.draw_point(Point::new(x as i32, y as i32)).unwrap();
             }
-            canvas.present();
             rerender = false;
         }
 
-        thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
+        d.draw_texture(&target, 0, 0, Color::WHITE);
     }
 }
