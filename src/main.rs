@@ -3,7 +3,7 @@ use std::ffi::c_void;
 use raylib::prelude::*;
 
 // to easily switch between 32 and 64 bits
-type FP = f32;
+type FP = f64;
 
 #[repr(C)]
 pub struct Complex(FP, FP);
@@ -22,26 +22,37 @@ fn number_keys() -> [(KeyboardKey, u32); 10] {
     std::array::from_fn(|i| (nums[i], i as _))
 }
 
+#[repr(C)]
+#[derive(Clone, Copy)]
+enum ShaderKind {
+    Mandelbrot = 0,
+    Julia
+}
+
 type Uniform = i32;
 
-struct MandelbrotShader {
+struct FractalShader {
     s: Shader,
     resolution: Uniform,
     max_iter: Uniform,
     cam: Uniform,
-    animation: Uniform
+    zoom: Uniform,
+    animation: Uniform,
+    kind: Uniform
 }
 
-impl MandelbrotShader {
+impl FractalShader {
     fn create(rl: &mut RaylibHandle, thread: &RaylibThread) -> Self {
         const SHADER: &str = include_str!("mandelbrot.glsl");
         let s = rl.load_shader_from_memory(thread, None, Some(SHADER));
         let resolution = s.get_shader_location("resolution");
         let max_iter = s.get_shader_location("max_iter");
         let cam = s.get_shader_location("cam");
+        let zoom = s.get_shader_location("zoom");
         let animation = s.get_shader_location("animation");
+        let kind = s.get_shader_location("kind");
         Self {
-            s, resolution, max_iter, cam, animation
+            s, resolution, max_iter, cam, zoom, animation, kind
         }
     }
 }
@@ -68,9 +79,12 @@ fn main() {
     let mut animation = 0.0_f32;
     let mut animating = false;
 
-    let mut shader = MandelbrotShader::create(&mut rl, &thread);
+    let mut kind = ShaderKind::Mandelbrot;
+
+    let mut shader = FractalShader::create(&mut rl, &thread);
     shader.s.set_shader_value::<[f32; 2]>(shader.resolution, [640.0, 480.0]);
     shader.s.set_shader_value(shader.max_iter, max_iter);
+    shader.s.set_shader_value(shader.kind, kind as i32);
 
     let mut target = rl.load_render_texture(&thread, 640, 480).unwrap();
 
@@ -84,6 +98,15 @@ fn main() {
                 println!("{max_iter}");
                 rerender = true;
             }
+        }
+
+        if rl.is_key_pressed(KeyboardKey::KEY_F) {
+            kind = match kind {
+                ShaderKind::Mandelbrot => ShaderKind::Julia,
+                ShaderKind::Julia => ShaderKind::Mandelbrot
+            };
+            shader.s.set_shader_value(shader.kind, kind as i32);
+            rerender = true;
         }
 
         animating ^= rl.is_key_pressed(KeyboardKey::KEY_SPACE);
@@ -129,7 +152,8 @@ fn main() {
                 let mut d = d.begin_texture_mode(&thread, &mut target);
                 {
                     shader.s.set_shader_value(shader.animation, animation);
-                    shader.s.set_shader_value(shader.cam, [cam.x, cam.y, cam.zoom]);
+                    shader.s.set_shader_value(shader.cam, [(cam.x * 10000.0) as f32, (cam.y * 10000.0) as f32, (cam.zoom * 10000.0) as f32]);
+
                     let mut d = d.begin_shader_mode(&shader.s);
                     d.draw_rectangle(0, 0, w, h, Color::WHITE);
                 }
