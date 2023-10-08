@@ -24,7 +24,7 @@ uniform int kind;
 int mandelbrot(in Complex c) {
 	Complex z = c;
 	for (int i = 0; i < max_iter; i++) {
-		if (z.real*z.imag >= 4.0) { // euclidian distance >= 2
+		if (z.real*z.real + z.imag*z.imag >= 4.0) { // euclidian distance >= 2
             return i;
        }
 
@@ -44,7 +44,7 @@ int mandelbrot(in Complex c) {
 
 int julia(in Complex z, in Complex c) {
 	for (int i = 0; i < max_iter; i++) {
-		if (z.real*z.imag >= 4.0) { // euclidian distance >= 2
+		if (z.real*z.real + z.imag*z.imag >= 4.0) { // euclidian distance >= 2
             return i;
        }
 

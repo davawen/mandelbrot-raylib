@@ -111,7 +111,7 @@ fn main() {
 
         animating ^= rl.is_key_pressed(KeyboardKey::KEY_SPACE);
         if animating {
-            animation += 0.01 / 60.0;
+            animation += 0.02 / 60.0;
             rerender = true;
         }
 
