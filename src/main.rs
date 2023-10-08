@@ -1,4 +1,4 @@
-use std::ffi::c_void;
+use std::{ffi::CString, f32::consts::PI};
 
 use raylib::prelude::*;
 
@@ -36,7 +36,6 @@ struct FractalShader {
     resolution: Uniform,
     max_iter: Uniform,
     cam: Uniform,
-    zoom: Uniform,
     animation: Uniform,
     kind: Uniform
 }
@@ -48,11 +47,10 @@ impl FractalShader {
         let resolution = s.get_shader_location("resolution");
         let max_iter = s.get_shader_location("max_iter");
         let cam = s.get_shader_location("cam");
-        let zoom = s.get_shader_location("zoom");
         let animation = s.get_shader_location("animation");
         let kind = s.get_shader_location("kind");
         Self {
-            s, resolution, max_iter, cam, zoom, animation, kind
+            s, resolution, max_iter, cam, animation, kind
         }
     }
 }
@@ -65,6 +63,8 @@ fn main() {
         .title("Mandelbrot")
         .resizable()
         .build();
+
+    rl.set_target_fps(60);
 
     let mut cam = Camera {
         x: -0.5, y: 0.0,
@@ -88,8 +88,18 @@ fn main() {
 
     let mut target = rl.load_render_texture(&thread, 640, 480).unwrap();
 
+    rl.gui_enable();
+
     let keys = number_keys();
     while !rl.window_should_close() {
+
+        let (w, h) = (rl.get_screen_width(), rl.get_screen_height());
+        if rl.is_window_resized() {
+            shader.s.set_shader_value::<[f32; 2]>(shader.resolution, [w as f32, h as f32]);
+            target = rl.load_render_texture(&thread, w as _, h as _).unwrap();
+            rerender = true;
+        }
+
         for key in keys {
             if rl.is_key_pressed(key.0) {
                 max_iter = 2_i32.pow(key.1 + 2);
@@ -112,13 +122,6 @@ fn main() {
         animating ^= rl.is_key_pressed(KeyboardKey::KEY_SPACE);
         if animating {
             animation += 0.02 / 60.0;
-            rerender = true;
-        }
-
-        let (w, h) = (rl.get_screen_width(), rl.get_screen_height());
-        if rl.is_window_resized() {
-            shader.s.set_shader_value::<[f32; 2]>(shader.resolution, [w as f32, h as f32]);
-            target = rl.load_render_texture(&thread, w as _, h as _).unwrap();
             rerender = true;
         }
 
@@ -151,8 +154,10 @@ fn main() {
             {
                 let mut d = d.begin_texture_mode(&thread, &mut target);
                 {
+                    let scaling = 2.0_f64.powi(16);
+
                     shader.s.set_shader_value(shader.animation, animation);
-                    shader.s.set_shader_value(shader.cam, [(cam.x * 10000.0) as f32, (cam.y * 10000.0) as f32, (cam.zoom * 10000.0) as f32]);
+                    shader.s.set_shader_value(shader.cam, [(cam.x * scaling) as f32, (cam.y * scaling) as f32, (cam.zoom * scaling) as f32]);
 
                     let mut d = d.begin_shader_mode(&shader.s);
                     d.draw_rectangle(0, 0, w, h, Color::WHITE);
@@ -162,5 +167,29 @@ fn main() {
         }
 
         d.draw_texture(&target, 0, 0, Color::WHITE);
+
+
+        let new_kind = if d.gui_button(Rectangle::new(5.0, 5.0, 65.0, 20.0), Some(CString::new("Mandelbrot").unwrap().as_c_str())) {
+            Some(ShaderKind::Mandelbrot)
+        } else if d.gui_button(Rectangle::new(75.0, 5.0, 65.0, 20.0), Some(CString::new("Julia").unwrap().as_c_str())) {
+            Some(ShaderKind::Julia)
+        } else { None };
+
+        if let Some(new_kind) = new_kind {
+            kind = new_kind;
+            shader.s.set_shader_value(shader.kind, kind as i32);
+            rerender = true;
+        }
+
+        if let ShaderKind::Julia = kind {
+            let new = d.gui_slider_bar(Rectangle::new(5.0, 30.0, 140.0, 20.0), None, None, animation, 0.0, 2.0*PI);
+            if new != animation {
+                animation = new;
+                rerender = true;
+            }
+        }
     }
+
+    rl.gui_disable();
+
 }

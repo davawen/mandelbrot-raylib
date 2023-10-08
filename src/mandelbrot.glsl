@@ -1,4 +1,5 @@
-#version 400 core
+#version 330 core
+#extension GL_ARB_gpu_shader_fp64 : enable
 
 in vec2 fragTexCoord;
 in vec4 fragColor;
@@ -65,7 +66,8 @@ int julia(in Complex z, in Complex c) {
 void main() {
 	vec2 p = gl_FragCoord.xy / resolution; 
 
-	dvec3 dcam = dvec3(cam) / 10000.0;
+	const double scaling = 2 << 16;
+	dvec3 dcam = dvec3(cam) / scaling;
 
 	Complex z = Complex(
 		double(p.x - 0.5) * dcam.z + dcam.x,
