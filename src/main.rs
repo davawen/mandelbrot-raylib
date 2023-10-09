@@ -143,8 +143,9 @@ fn main() {
     rl.gui_enable();
 
     let number_keys = number_keys();
-    while !rl.window_should_close() {
+    let mut old_mouse = rl.get_mouse_position();
 
+    while !rl.window_should_close() {
         let (w, h) = (rl.get_screen_width(), rl.get_screen_height());
         if rl.is_window_resized() {
             shader.s.set_shader_value::<[f32; 2]>(shader.resolution, [w as f32, h as f32]);
@@ -190,14 +191,16 @@ fn main() {
             _ => ()
         }
 
-        if rl.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT) {
-            let delta = rl.get_mouse_delta();
+        if rl.is_mouse_button_down(MouseButton::MOUSE_LEFT_BUTTON) {
+            let delta = rl.get_mouse_position() - old_mouse;
             if delta != Vector2::zero() {
                 cam.x -= cam.zoom*delta.x as FP / w as FP;
                 cam.y -= cam.zoom*delta.y as FP / w as FP;
                 rerender = true;
             }
         }
+
+        old_mouse = rl.get_mouse_position();
 
         let mut d = rl.begin_drawing(&thread);
 
@@ -240,6 +243,8 @@ fn main() {
                 rerender = true;
             }
         }
+
+        drop(d);
     }
 
     rl.gui_disable();
