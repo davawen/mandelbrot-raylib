@@ -76,9 +76,24 @@ void main() {
 		i = julia(z, Complex(animation.x, animation.y));
 	}
 
+	const vec3 colors[6] = vec3[6](
+		vec3(0.1, 0.1, 0.3),
+		vec3(0.1, 0.2, 0.9),
+		vec3(0.1, 0.95, 0.95),
+		vec3(0.2, 0.95, 0.1),
+		vec3(0.9, 0.95, 0.1),
+		vec3(0.95, 0.1, 0.1)
+	);
+
 	if (i == max_iter) color = vec4(0.0, 0.0, 0.0, 1.0);
 	else {
-		float value = float(i) / float(max_iter);
-		color = vec4(1.0 - value, 0.5 - value*0.5, 0.5, 1.0);
+		float range = float(i) / float(max_iter);
+		range = 1.0 - range;
+		range = 1.0 - pow(range, 3); // spread the colors more evenly
+		range *= 5;
+
+		vec3 a = colors[uint(floor(range))];
+		vec3 b = colors[uint(ceil(range))];
+		color = vec4(mix(a, b, fract(range)), 1.0);
 	}
 }
