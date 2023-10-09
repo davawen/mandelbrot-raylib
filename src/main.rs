@@ -3,7 +3,7 @@ use std::{ffi::CString, f32::consts::PI, usize, mem::MaybeUninit, array};
 use raylib::prelude::*;
 
 // to easily switch between 32 and 64 bits
-type FP = f64;
+type FP = f32;
 
 #[repr(C)]
 pub struct Complex(FP, FP);
@@ -31,27 +31,12 @@ enum ShaderKind {
 
 type Uniform = i32;
 
-#[derive(Clone, Copy)]
-struct DoubleUniform {
-    big: Uniform,
-    small: Uniform
-}
-
-impl DoubleUniform {
-    fn new(s: &Shader, name: &str) -> DoubleUniform {
-        DoubleUniform{
-            big: s.get_shader_location(&format!("{name}_big")),
-            small: s.get_shader_location(&format!("{name}_small"))
-        }
-    }
-}
-
 struct FractalShader {
     s: Shader,
     resolution: Uniform,
     max_iter: Uniform,
-    cam: DoubleUniform,
-    animation: DoubleUniform,
+    cam: Uniform,
+    animation: Uniform,
     kind: Uniform
 }
 
@@ -61,8 +46,8 @@ impl FractalShader {
         let s = rl.load_shader_from_memory(thread, None, Some(SHADER));
         let resolution = s.get_shader_location("resolution");
         let max_iter = s.get_shader_location("max_iter");
-        let cam = DoubleUniform::new(&s, "cam");
-        let animation = DoubleUniform::new(&s, "animation");
+        let cam = s.get_shader_location("cam");
+        let animation = s.get_shader_location("animation");
         let kind = s.get_shader_location("kind");
         Self {
             s, resolution, max_iter, cam, animation, kind
@@ -70,45 +55,7 @@ impl FractalShader {
     }
 }
 
-/// You cannot directly pass an f64 to a shader, so you need to split it up into two f32s.
-/// Doesn't work well with big values, but functions with small ones.
-trait ShaderVDouble {
-    fn set_shader_f64(self, s: &mut Shader, uniform: DoubleUniform);
-}
-
-macro_rules! impl_ShaderVDouble {
-    ($N:literal) => {
-        impl ShaderVDouble for [f64; $N] {
-            fn set_shader_f64(self, s: &mut Shader, uniform: DoubleUniform) {
-                let mut big = [0.0; $N];
-                let mut small = [0.0; $N];
-                for i in 0..$N {
-                    big[i] = self[i] as f32;
-                    small[i] = (self[i] - big[i] as f64) as f32;
-                }
-
-                s.set_shader_value(uniform.big, big);
-                s.set_shader_value(uniform.small, small);
-            }
-        }
-    }
-}
-
-impl ShaderVDouble for f64 {
-    fn set_shader_f64(self, s: &mut Shader, uniform: DoubleUniform) {
-        let big = self as f32;
-        let small = (self - big as f64) as f32;
-        s.set_shader_value(uniform.big, big);
-        s.set_shader_value(uniform.small, small);
-    }
-}
-
-impl_ShaderVDouble!(2);
-impl_ShaderVDouble!(3);
-impl_ShaderVDouble!(4);
-
 fn main() {
-
     // let opt = Opt::from_arg();
     let (mut rl, thread) = raylib::init()
         .size(640, 480)
@@ -128,7 +75,7 @@ fn main() {
     let mut max_iter = 32;
     println!("change how many iterations there are with the number keys!");
 
-    let mut animation = 0.0_f64;
+    let mut animation = 0.0_f32;
     let mut animating = false;
 
     let mut kind = ShaderKind::Mandelbrot;
@@ -209,11 +156,8 @@ fn main() {
             {
                 let mut d = d.begin_texture_mode(&thread, &mut target);
                 {
-                    [animation.cos()*0.7885, animation.sin()*0.7885]
-                        .set_shader_f64(&mut shader.s, shader.animation);
-
-                    [cam.x, cam.y, cam.zoom]
-                        .set_shader_f64(&mut shader.s, shader.cam);
+                    shader.s.set_shader_value(shader.animation, [animation.cos()*0.7885, animation.sin()*0.7885]);
+                    shader.s.set_shader_value(shader.cam, [cam.x, cam.y, cam.zoom]);
 
                     let mut d = d.begin_shader_mode(&shader.s);
                     d.draw_rectangle(0, 0, w, h, Color::WHITE);
@@ -237,9 +181,9 @@ fn main() {
         }
 
         if let ShaderKind::Julia = kind {
-            let new = d.gui_slider_bar(Rectangle::new(5.0, 30.0, 140.0, 20.0), None, None, animation as f32, 0.0, 2.0*PI);
-            if new != animation as f32 {
-                animation = new as f64;
+            let new = d.gui_slider_bar(Rectangle::new(5.0, 30.0, 140.0, 20.0), None, None, animation, 0.0, 2.0*PI);
+            if new != animation {
+                animation = new as FP;
                 rerender = true;
             }
         }

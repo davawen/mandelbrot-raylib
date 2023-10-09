@@ -1,5 +1,4 @@
 #version 330 core
-#extension GL_ARB_gpu_shader_fp64 : enable
 
 in vec2 fragTexCoord;
 in vec4 fragColor;
@@ -7,18 +6,16 @@ in vec4 fragColor;
 out vec4 color;
 
 struct Complex {
-	double real;
-	double imag;
+	float real;
+	float imag;
 };
 
 uniform vec2 resolution;
 uniform int max_iter;
 
-uniform vec3 cam_big;
-uniform vec3 cam_small;
+uniform vec3 cam;
 
-uniform vec2 animation_big;
-uniform vec2 animation_small;
+uniform vec2 animation;
 
 const int KIND_MANDELBROT = 0;
 const int KIND_JULIA = 1;
@@ -68,17 +65,14 @@ int julia(in Complex z, in Complex c) {
 void main() {
 	vec2 p = gl_FragCoord.xy / resolution; 
 
-	dvec3 dcam = dvec3(cam_big) + dvec3(cam_small);
-
 	Complex z = Complex(
-		double(p.x - 0.5) * dcam.z + dcam.x,
-		double((p.y - 0.5) * resolution.y/resolution.x) * dcam.z + dcam.y
+		(p.x - 0.5) * cam.z + cam.x,
+		((p.y - 0.5) * resolution.y/resolution.x) * cam.z + cam.y
 	);
 
 	int i = 0;
 	if (kind == KIND_MANDELBROT) i = mandelbrot(z);
 	else {
-		dvec2 animation = dvec2(animation_big) + dvec2(animation_small);
 		i = julia(z, Complex(animation.x, animation.y));
 	}
 
