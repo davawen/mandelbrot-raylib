@@ -128,7 +128,7 @@ fn main() {
     let mut max_iter = 32;
     println!("change how many iterations there are with the number keys!");
 
-    let mut animation = 0.0_f64;
+    let mut animation = Complex(0.0, 0.0);
     let mut animating = false;
 
     let mut kind = ShaderKind::Mandelbrot;
@@ -136,7 +136,6 @@ fn main() {
     let mut shader = FractalShader::create(&mut rl, &thread);
     shader.s.set_shader_value::<[f32; 2]>(shader.resolution, [640.0, 480.0]);
     shader.s.set_shader_value(shader.max_iter, max_iter);
-    shader.s.set_shader_value(shader.kind, kind as i32);
 
     let mut target = rl.load_render_texture(&thread, 640, 480).unwrap();
 
@@ -168,14 +167,13 @@ fn main() {
                 ShaderKind::Mandelbrot => ShaderKind::Julia,
                 ShaderKind::Julia => ShaderKind::Mandelbrot
             };
-            shader.s.set_shader_value(shader.kind, kind as i32);
             rerender = true;
         }
 
         animating ^= rl.is_key_pressed(KeyboardKey::KEY_SPACE);
         if animating {
-            animation += 0.02 / 60.0;
-            rerender = true;
+            // animation += 0.004;
+            // rerender = true;
         }
 
         match rl.get_mouse_wheel_move() {
@@ -200,6 +198,24 @@ fn main() {
             }
         }
 
+        if rl.is_mouse_button_pressed(MouseButton::MOUSE_RIGHT_BUTTON) {
+            kind = ShaderKind::Mandelbrot;
+            rerender = true;
+        }
+
+        let draw_selection_lines = rl.is_mouse_button_down(MouseButton::MOUSE_RIGHT_BUTTON);
+
+        if rl.is_mouse_button_released(MouseButton::MOUSE_RIGHT_BUTTON) {
+            let mut pos = rl.get_mouse_position();
+            pos /= Vector2::new(w as f32, h as f32);
+            animation = Complex(
+                (pos.x - 0.5) as FP * cam.zoom + cam.x,
+                ((pos.y - 0.5) * h as f32 / w as f32) as FP * cam.zoom + cam.y
+            );
+            kind = ShaderKind::Julia;
+            rerender = true;
+        }
+
         old_mouse = rl.get_mouse_position();
 
         let mut d = rl.begin_drawing(&thread);
@@ -209,11 +225,13 @@ fn main() {
             {
                 let mut d = d.begin_texture_mode(&thread, &mut target);
                 {
-                    [animation.cos()*0.7885, animation.sin()*0.7885]
+                    [animation.0, animation.1]
                         .set_shader_f64(&mut shader.s, shader.animation);
 
                     [cam.x, cam.y, cam.zoom]
                         .set_shader_f64(&mut shader.s, shader.cam);
+
+                        shader.s.set_shader_value(shader.kind, kind as i32);
 
                     let mut d = d.begin_shader_mode(&shader.s);
                     d.draw_rectangle(0, 0, w, h, Color::WHITE);
@@ -224,6 +242,12 @@ fn main() {
 
         d.draw_texture(&target, 0, 0, Color::WHITE);
 
+        if draw_selection_lines {
+            let pos = d.get_mouse_position();
+            d.draw_line(pos.x as i32, 0, pos.x as i32, h, Color::RED);
+            d.draw_line(0, pos.y as i32, w, pos.y as i32, Color::RED);
+        }
+
         let new_kind = if d.gui_button(Rectangle::new(5.0, 5.0, 65.0, 20.0), Some(CString::new("Mandelbrot").unwrap().as_c_str())) {
             Some(ShaderKind::Mandelbrot)
         } else if d.gui_button(Rectangle::new(75.0, 5.0, 65.0, 20.0), Some(CString::new("Julia").unwrap().as_c_str())) {
@@ -232,16 +256,15 @@ fn main() {
 
         if let Some(new_kind) = new_kind {
             kind = new_kind;
-            shader.s.set_shader_value(shader.kind, kind as i32);
             rerender = true;
         }
 
         if let ShaderKind::Julia = kind {
-            let new = d.gui_slider_bar(Rectangle::new(5.0, 30.0, 140.0, 20.0), None, None, animation as f32, 0.0, 2.0*PI);
-            if new != animation as f32 {
-                animation = new as f64;
-                rerender = true;
-            }
+            // let new = d.gui_slider_bar(Rectangle::new(5.0, 30.0, 140.0, 20.0), None, None, animation as f32, 0.0, 2.0*PI);
+            // if new != animation as f32 {
+            //     animation = new as f64;
+            //     rerender = true;
+            // }
         }
 
         drop(d);
