@@ -14,9 +14,11 @@ struct Complex {
 uniform vec2 resolution;
 uniform int max_iter;
 
-uniform vec3 cam;
+uniform vec3 cam_big;
+uniform vec3 cam_small;
 
-uniform float animation;
+uniform vec2 animation_big;
+uniform vec2 animation_small;
 
 const int KIND_MANDELBROT = 0;
 const int KIND_JULIA = 1;
@@ -66,8 +68,7 @@ int julia(in Complex z, in Complex c) {
 void main() {
 	vec2 p = gl_FragCoord.xy / resolution; 
 
-	const double scaling = 2 << 16;
-	dvec3 dcam = dvec3(cam) / scaling;
+	dvec3 dcam = dvec3(cam_big) + dvec3(cam_small);
 
 	Complex z = Complex(
 		double(p.x - 0.5) * dcam.z + dcam.x,
@@ -76,7 +77,10 @@ void main() {
 
 	int i = 0;
 	if (kind == KIND_MANDELBROT) i = mandelbrot(z);
-	else i = julia(z, Complex(double(cos(animation)), double(sin(animation))));
+	else {
+		dvec2 animation = dvec2(animation_big) + dvec2(animation_small);
+		i = julia(z, Complex(animation.x, animation.y));
+	}
 
 	if (i == max_iter) color = vec4(0.0, 0.0, 0.0, 1.0);
 	else {
