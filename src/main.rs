@@ -13,6 +13,16 @@ struct Camera {
     zoom: FP
 }
 
+impl Camera {
+    fn transform(&self, mut pos: Vector2, w: i32, h: i32) -> Complex {
+        pos /= Vector2::new(w as f32, h as f32);
+        Complex(
+            (pos.x - 0.5) as FP * self.zoom + self.x,
+            ((pos.y - 0.5) * h as f32 / w as f32) as FP * self.zoom + self.y
+        )
+    }
+}
+
 fn number_keys() -> [(KeyboardKey, u32); 10] {
     use KeyboardKey as K;
     let nums = [
@@ -76,7 +86,7 @@ fn main() {
     println!("change how many iterations there are with the number keys!");
 
     let mut animation = Complex(0.0, 0.0);
-    let mut animating = false;
+    let mut vary_julia = false;
 
     let mut kind = ShaderKind::Mandelbrot;
 
@@ -117,11 +127,7 @@ fn main() {
             rerender = true;
         }
 
-        animating ^= rl.is_key_pressed(KeyboardKey::KEY_SPACE);
-        if animating {
-            // animation += 0.02 / 60.0;
-            // rerender = true;
-        }
+        vary_julia ^= rl.is_key_pressed(KeyboardKey::KEY_SPACE);
 
         match rl.get_mouse_wheel_move() {
             y if y != 0.0 => {
@@ -145,22 +151,28 @@ fn main() {
             }
         }
 
-        if rl.is_mouse_button_pressed(MouseButton::MOUSE_RIGHT_BUTTON) {
-            kind = ShaderKind::Mandelbrot;
-            rerender = true;
-        }
+        let mut draw_selection_lines = false;
+        if vary_julia {
+            if rl.is_mouse_button_down(MouseButton::MOUSE_RIGHT_BUTTON) {
+                let pos = rl.get_mouse_position();
+                animation = cam.transform(pos, w, h);
+                kind = ShaderKind::Julia;
+                rerender = true;
+            }
+        } else {
+            if rl.is_mouse_button_pressed(MouseButton::MOUSE_RIGHT_BUTTON) {
+                kind = ShaderKind::Mandelbrot;
+                rerender = true;
+            }
 
-        let draw_selection_lines = rl.is_mouse_button_down(MouseButton::MOUSE_RIGHT_BUTTON);
+            draw_selection_lines = rl.is_mouse_button_down(MouseButton::MOUSE_RIGHT_BUTTON);
 
-        if rl.is_mouse_button_released(MouseButton::MOUSE_RIGHT_BUTTON) {
-            let mut pos = rl.get_mouse_position();
-            pos /= Vector2::new(w as f32, h as f32);
-            animation = Complex(
-                (pos.x - 0.5) as FP * cam.zoom + cam.x,
-                ((pos.y - 0.5) * h as f32 / w as f32) as FP * cam.zoom + cam.y
-            );
-            kind = ShaderKind::Julia;
-            rerender = true;
+            if rl.is_mouse_button_released(MouseButton::MOUSE_RIGHT_BUTTON) {
+                let pos = rl.get_mouse_position();
+                animation = cam.transform(pos, w, h);
+                kind = ShaderKind::Julia;
+                rerender = true;
+            }
         }
 
         old_mouse = rl.get_mouse_position();
@@ -202,13 +214,8 @@ fn main() {
             rerender = true;
         }
 
-        if let ShaderKind::Julia = kind {
-            // let new = d.gui_slider_bar(Rectangle::new(5.0, 30.0, 140.0, 20.0), None, None, animation, 0.0, 2.0*PI);
-            // if new != animation {
-            //     animation = new as FP;
-            //     rerender = true;
-            // }
-        }
+        d.gui_panel(Rectangle::new(5.0, 30.0, 50.0, 20.0));
+        vary_julia = d.gui_check_box(Rectangle::new(7.5, 32.5, 15.0, 15.0), Some(CString::new("Vary").unwrap().as_c_str()), vary_julia);
 
         drop(d);
     }
