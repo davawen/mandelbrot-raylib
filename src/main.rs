@@ -1,5 +1,4 @@
-use std::ffi::CString;
-
+use cstr::cstr;
 use raylib::prelude::*;
 
 // to easily switch between 32 and 64 bits
@@ -117,6 +116,15 @@ impl_ShaderVDouble!(2);
 impl_ShaderVDouble!(3);
 impl_ShaderVDouble!(4);
 
+fn render_fractal(d: &mut RaylibDrawHandle, thread: &RaylibThread, shader: &Shader, target: &mut RenderTexture2D) {
+    let (w, h) = (target.width(), target.height());
+    let mut d = d.begin_texture_mode(thread, target);
+    {
+        let mut d = d.begin_shader_mode(shader);
+        d.draw_rectangle(0, 0, w, h, Color::WHITE);
+    }
+}
+
 fn main() {
 
     // let opt = Opt::from_arg();
@@ -230,26 +238,33 @@ fn main() {
 
         old_mouse = rl.get_mouse_position();
 
+        let save_image = rl.is_key_pressed(KeyboardKey::KEY_S).then(|| {
+            let (w, h) = (4960, 3508);
+            rl.load_render_texture(&thread, w, h).unwrap()
+        });
+
         let mut d = rl.begin_drawing(&thread);
 
         d.clear_background(Color::new(0, 0, 0, 0));
         if rerender {
-            {
-                let mut d = d.begin_texture_mode(&thread, &mut target);
-                {
-                    [animation.0, animation.1]
-                        .set_shader_f64(&mut shader.s, shader.animation);
+            [animation.0, animation.1]
+                .set_shader_f64(&mut shader.s, shader.animation);
+            [cam.x, cam.y, cam.zoom]
+                .set_shader_f64(&mut shader.s, shader.cam);
+            shader.s.set_shader_value(shader.kind, kind as i32);
 
-                    [cam.x, cam.y, cam.zoom]
-                        .set_shader_f64(&mut shader.s, shader.cam);
-
-                        shader.s.set_shader_value(shader.kind, kind as i32);
-
-                    let mut d = d.begin_shader_mode(&shader.s);
-                    d.draw_rectangle(0, 0, w, h, Color::WHITE);
-                }
-            }
+            render_fractal(&mut d, &thread, &shader.s, &mut target);
+            
             rerender = false;
+        }
+
+        // save image
+        if let Some(mut target) = save_image {
+            shader.s.set_shader_value(shader.resolution, [target.width() as f32, target.height() as f32]);
+            render_fractal(&mut d, &thread, &shader.s, &mut target);
+            shader.s.set_shader_value(shader.resolution, [w as f32, h as f32]);
+            let image = target.get_texture_data().unwrap();
+            image.export_image("output.png");
         }
 
         d.draw_texture(&target, 0, 0, Color::WHITE);
@@ -260,9 +275,9 @@ fn main() {
             d.draw_line(0, pos.y as i32, w, pos.y as i32, Color::RED);
         }
 
-        let new_kind = if d.gui_button(Rectangle::new(5.0, 5.0, 65.0, 20.0), Some(CString::new("Mandelbrot").unwrap().as_c_str())) {
+        let new_kind = if d.gui_button(Rectangle::new(5.0, 5.0, 65.0, 20.0), Some(cstr!("Mandelbrot"))) {
             Some(ShaderKind::Mandelbrot)
-        } else if d.gui_button(Rectangle::new(75.0, 5.0, 65.0, 20.0), Some(CString::new("Julia").unwrap().as_c_str())) {
+        } else if d.gui_button(Rectangle::new(75.0, 5.0, 65.0, 20.0), Some(cstr!("Julia"))) {
             Some(ShaderKind::Julia)
         } else { None };
 
@@ -272,9 +287,7 @@ fn main() {
         }
 
         d.gui_panel(Rectangle::new(5.0, 30.0, 50.0, 20.0));
-        vary_julia = d.gui_check_box(Rectangle::new(7.5, 32.5, 15.0, 15.0), Some(CString::new("Vary").unwrap().as_c_str()), vary_julia);
-
-        drop(d);
+        vary_julia = d.gui_check_box(Rectangle::new(7.5, 32.5, 15.0, 15.0), Some(cstr!("Vary")), vary_julia);
     }
 
     rl.gui_disable();

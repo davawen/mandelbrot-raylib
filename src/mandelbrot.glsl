@@ -82,18 +82,36 @@ void main() {
 		i = julia(z, Complex(animation.x, animation.y));
 	}
 
-	const vec3 colors[6] = vec3[6](
-		vec3(0.1, 0.1, 0.3),
-		vec3(0.1, 0.2, 0.9),
-		vec3(0.1, 0.95, 0.95),
-		vec3(0.2, 0.95, 0.1),
-		vec3(0.9, 0.95, 0.1),
-		vec3(0.95, 0.1, 0.1)
+	// #define NUM_COLORS 6
+	// const vec3 colors[NUM_COLORS] = vec3[NUM_COLORS](
+	// 	vec3(0.1, 0.1, 0.3),
+	// 	vec3(0.1, 0.2, 0.9),
+	// 	vec3(0.1, 0.95, 0.95),
+	// 	vec3(0.3, 0.8, 0.2),
+	// 	vec3(0.9, 0.95, 0.1),
+	// 	vec3(0.8, 0.2, 0.2)
+	// );
+
+	// #define NUM_COLORS 4
+	// const vec3 colors[NUM_COLORS] = vec3[NUM_COLORS] (
+	// 	vec3(0.349, 0.329, 0.341),  // #595457
+	// 	vec3(0.619, 0.098, 0.274),  // #9E1946
+	// 	vec3(0.871, 0.051, 0.572),  // #DE0D92
+	// 	vec3(0.301, 0.423, 0.980)   // #4D6CFA
+	// );
+
+	#define NUM_COLORS 5
+	const vec3 colors[NUM_COLORS] = vec3[NUM_COLORS] (
+		vec3(0.588, 0.678, 0.784),  // #96ADC8
+		vec3(0.843, 1.000, 0.671),  // #D7FFAB
+		vec3(0.988, 1.000, 0.424),  // #FCFF6C
+		vec3(0.847, 0.616, 0.416),  // #D89D6A
+		vec3(0.427, 0.271, 0.298)   // #6D454C
 	);
 
 	if (i == max_iter) color = vec4(0.0, 0.0, 0.0, 1.0);
 	else {
-		float range = float(i*5) / float(max_iter);
+		float range = float(i*(NUM_COLORS+1)) / float(max_iter);
 
 		vec3 a = colors[uint(floor(range))];
 		vec3 b = colors[uint(ceil(range))];

@@ -1,0 +1,4 @@
+
+(gthumb:18088): Gtk-WARNING **: 08:48:26.674: Theme parsing error: gtk.css:6642:68: Invalid name of pseudo-class
+
+(gthumb:18088): Gtk-WARNING **: 08:48:26.757: Theme parsing error: gtk-dark.css:6642:68: Invalid name of pseudo-class
